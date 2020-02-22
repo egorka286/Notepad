@@ -1,0 +1,74 @@
+#include <windows.h>
+#include "resource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+MAIN_MENU MENU
+BEGIN
+    POPUP "Файл"
+    BEGIN
+        MENUITEM "Создать",                     ID_CREATE
+        MENUITEM "Открыть",                     ID_OPEN
+        MENUITEM "Сохранить",                   ID_SAVE
+        MENUITEM SEPARATOR
+        MENUITEM "Выход",                       ID_EXIT
+    END
+    POPUP "Правка"
+    BEGIN
+        MENUITEM "Отменить",                    ID_UNDO
+        MENUITEM SEPARATOR
+        MENUITEM "Вырезать",                    ID_CUT
+        MENUITEM "Копировать",                  ID_COPY
+        MENUITEM "Вставить",                    ID_PASTE
+        MENUITEM "Удалить",                     ID_DELETE
+    END
+    POPUP "Справка"
+    BEGIN
+        MENUITEM "О программе",                 ID_ABOUT
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+IDI_NOTEPAT_ICON        ICON                    "notepad32.ico"
+IDI_NOTEPAD_SMICON      ICON                    "notepad16.ico"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Диалоговое окно "Открыть файл"
+//
+
+IDD_OPEN DIALOGEX 0, 0, 225, 90
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Открыть файл"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "Открыть",IDOK,39,59,50,14
+    PUSHBUTTON      "Отмена",IDCANCEL,135,58,50,14
+    EDITTEXT        IDC_FILE,21,30,185,13,ES_AUTOHSCROLL
+    CONTROL         "Имя файла:",IDC_STATIC,"Static",SS_SIMPLE,23,15,182,12
+END
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Диалоговое окно "Сохранить файл"
+//
+
+IDD_SAVE DIALOGEX 0, 0, 225, 90
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Сохранить файл"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "Сохранить", IDOK, 39, 59, 50, 14
+    PUSHBUTTON      "Отмена", IDCANCEL, 135, 58, 50, 14
+    EDITTEXT        IDC_FILE, 21, 30, 185, 13, ES_AUTOHSCROLL
+    CONTROL         "Имя файла:", IDC_STATIC, "Static", SS_SIMPLE, 23, 15, 182, 12
+END
