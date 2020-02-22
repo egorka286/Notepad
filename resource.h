@@ -1,5 +1,6 @@
 #define IDD_OPEN						101
 #define IDD_SAVE						102
+#define IDD_CREATE						103
 
 #define IDC_FILE						1001
 #define IDC_STATIC						1002

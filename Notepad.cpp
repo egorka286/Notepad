@@ -1,6 +1,3 @@
-#ifndef _CRT_SECURE_NO_WARNINGS
-#define _CRT_SECURE_NO_WARNINGS
-#endif
 #include <windows.h>
 #include <tchar.h>
 #include <stdio.h>
@@ -9,15 +6,19 @@
 LRESULT CALLBACK WindowProc(HWND, UINT, WPARAM, LPARAM);
 BOOL CALLBACK OpenDlgFunc(HWND, UINT, WPARAM, LPARAM);
 BOOL CALLBACK SaveDlgFunc(HWND, UINT, WPARAM, LPARAM);
+BOOL CALLBACK CreateDlgFunc(HWND, UINT, WPARAM, LPARAM);
 
-HWND hWnd;
+int PromptSave(HWND);
+void SaveFile(HWND hWnd, const TCHAR* FileName);
+void LoadFile(HWND hWnd, const TCHAR* FileName);
+
 HWND hEdit;
-
-TCHAR CurrentFile[80] = TEXT("Безымянный");
+TCHAR CurrentFile[80] = TEXT("Безымянный.txt");
 BOOL FileChanged = FALSE;
 
 INT WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszCmdShow, int nCmdShow)
 {
+	HWND hWnd;
 	TCHAR szClassName[] = TEXT("Notepad");
 	MSG lpMsg;
 	WNDCLASSEX wcl;
@@ -37,7 +38,7 @@ INT WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszCmdShow, int 
 	wcl.lpszClassName = szClassName;
 	wcl.hIconSm = LoadIcon(hInst, MAKEINTRESOURCE(IDI_NOTEPAD_SMICON));
 
-	if (!RegisterClassExW(&wcl))
+	if (!RegisterClassEx(&wcl))
 		return 0;
 
 	H = GetSystemMetrics(SM_CXSCREEN);
@@ -66,13 +67,13 @@ INT WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR lpszCmdShow, int 
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMessage, WPARAM wParam, LPARAM lParam)
 {
 	RECT rect;
+	TCHAR Caption[80];
 
 	switch (uMessage)
 	{
 	case WM_PAINT:
-		TCHAR Caption[80];
-		_tcscpy(Caption, CurrentFile);
-		_tcscat(Caption, TEXT(" - Блокнот"));
+		lstrcpy(Caption, CurrentFile);
+		lstrcat(Caption, TEXT(" - Блокнот"));
 		SetWindowText(hWnd, Caption);
 		GetClientRect(hWnd, &rect);
 		MoveWindow(hEdit, 0, 0, rect.right, rect.bottom, 0);
@@ -80,27 +81,41 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMessage, WPARAM wParam, LPARAM lPar
 		break;
 
 	case WM_COMMAND:
-		if (HIWORD(wParam) == EN_CHANGE)
+		if (lParam == (LPARAM)hEdit && HIWORD(wParam) == EN_CHANGE)
 			FileChanged = TRUE;
 
 		switch (LOWORD(wParam))
 		{
+		case ID_CREATE:
+			return DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_CREATE), hWnd, CreateDlgFunc);
+
 		case ID_OPEN:
-			if (FileChanged)
-				MessageBox(hWnd, TEXT("Файл изменён"), 0, 0);
-			return DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_OPEN), NULL, OpenDlgFunc);
-			break;
+			return DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_OPEN), hWnd, OpenDlgFunc);
 
 		case ID_SAVE:
-			if (FileChanged)
-				MessageBox(hWnd, TEXT("Файл изменён"), 0, 0);
-			return DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_SAVE), NULL, SaveDlgFunc);
-			break;
+			return DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_SAVE), hWnd, SaveDlgFunc);
 
 		case ID_EXIT:
-			if (FileChanged)
-				MessageBox(hWnd, TEXT("Файл изменён"), 0, 0);
-			PostQuitMessage(0);
+			SendMessage(hWnd, WM_CLOSE, 0, 0);
+
+		case ID_UNDO:
+			SendMessage(hEdit, WM_UNDO, 0, 0);
+			break;
+
+		case ID_CUT:
+			SendMessage(hEdit, WM_CUT, 0, 0);
+			break;
+
+		case ID_COPY:
+			SendMessage(hEdit, WM_COPY, 0, 0);
+			break;
+
+		case ID_PASTE:
+			SendMessage(hEdit, WM_PASTE, 0, 0);
+			break;
+
+		case ID_DELETE:
+			SendMessage(hEdit, WM_CLEAR, 0, 0);
 			break;
 
 		case ID_ABOUT:
@@ -109,50 +124,15 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMessage, WPARAM wParam, LPARAM lPar
 		}
 		break;
 
-	/*case WM_DESTROY:
-		if (FileChanged)
-			MessageBox(hWnd, TEXT("Файл изменён"), 0, 0);
-		PostQuitMessage(0);
-		break;*/
-
 	case WM_CLOSE:
-		if (FileChanged)
-		{
-			int s = MessageBox(hWnd, TEXT("Файл не сохранён.\n\nСохранить?"), 0, MB_ICONWARNING | MB_YESNOCANCEL);
-			switch (s)
-			{
-			case IDYES:
-			{
-				// save
-				TCHAR FileName[80];
-				char Buff[10240] = { 0 };
-				int size;
-				DWORD writen = 0;
-				HANDLE hFile;
+		if (!FileChanged)
+			DestroyWindow(hWnd);
+		if (IDCANCEL != PromptSave(hWnd))
+			DestroyWindow(hWnd);
+		break;
 
-				_tcscpy(FileName, CurrentFile);
-				hFile = CreateFile(FileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-				if (hFile != INVALID_HANDLE_VALUE)
-				{
-					size = GetWindowTextLengthA(hEdit) + 1;
-					if (size > 10240)
-						size = 10240;
-					GetWindowTextA(hEdit, Buff, size);
-					WriteFile(hFile, Buff, size, &writen, NULL);
-					_tcscpy(CurrentFile, FileName);
-					SendMessage(hWnd, WM_PAINT, 0, 0);
-					CloseHandle(hFile);
-				}
-				PostQuitMessage(0);
-			}
-				break;
-			case IDNO:
-				PostQuitMessage(0);
-				break;
-			}
-		}
-		else
-			PostQuitMessage(0);
+	case WM_DESTROY:
+		PostQuitMessage(0);
 		break;
 
 	default:
@@ -161,125 +141,195 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMessage, WPARAM wParam, LPARAM lPar
 	return 0;
 }
 
-BOOL CALLBACK OpenDlgFunc(HWND hWndd, UINT uMessage, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK OpenDlgFunc(HWND hDlg, UINT uMessage, WPARAM wParam, LPARAM lParam)
 {
-	static HWND edit;
+	TCHAR FileName[80];
 
 	switch (uMessage)
 	{
 	case WM_INITDIALOG:
-		edit = GetDlgItem(hWndd, IDC_FILE);
-		SetFocus(edit);
+		SetFocus(GetDlgItem(hDlg, IDC_FILE));
 		break;
 
 	case WM_COMMAND:
-
-		switch (wParam)
+		if (LOWORD(wParam) == IDOK)
 		{
-		case IDOK:
-		{
-			TCHAR FileName[80];
-			char Buff[10240] = { 0 };
-			DWORD read = 0;
-			HANDLE hFile;
+			if (FileChanged)
+				if (IDCANCEL == PromptSave(hDlg))
+					SendMessage(hDlg, WM_CLOSE, 0, 0);
 
-			GetWindowText(edit, FileName, 80);
-			if (lstrlen(FileName) == 0)
-				MessageBox(hWndd, TEXT("Введите имя файла"), TEXT("Ошибка"), MB_ICONEXCLAMATION | MB_OK);
+			GetDlgItemText(hDlg, IDC_FILE, FileName, sizeof(FileName));
+			if (!lstrlen(FileName))
+			{
+				MessageBox(hDlg, TEXT("Введите имя файла"), 0, MB_ICONERROR | MB_OK);
+				SetFocus(GetDlgItem(hDlg, IDC_FILE));
+			}
 			else
 			{
-				hFile = CreateFile(FileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-				if (hFile != INVALID_HANDLE_VALUE)
-				{
-					ReadFile(hFile, Buff, sizeof(Buff), &read, NULL);
-					SetWindowTextA(hEdit, Buff);
-					_tcscpy(CurrentFile, FileName);
-					SendMessage(hWnd, WM_PAINT, 0, 0);
-					CloseHandle(hFile);
-					FileChanged = FALSE;
-					EndDialog(hWndd, 0);
-				}
-				else
-					MessageBox(hWndd, TEXT("Файл с указанным именем не найден"), TEXT("Ошибка"), MB_ICONEXCLAMATION | MB_OK);
+				LoadFile(hDlg, FileName);
+				EndDialog(hDlg, 0);
+				return TRUE;
 			}
 		}
-		break;
 
-		case IDCANCEL:
-			EndDialog(hWndd, 0);
-			break;
+		if (LOWORD(wParam) == IDCANCEL)
+		{
+			EndDialog(hDlg, 0);
+			return TRUE;
 		}
-		return TRUE;
+
 		break;
 
 	case WM_CLOSE:
-		EndDialog(hWndd, 0);
+		EndDialog(hDlg, 0);
 		return TRUE;
-		break;
 	}
 	return FALSE;
 }
 
-BOOL CALLBACK SaveDlgFunc(HWND hWndd, UINT uMessage, WPARAM wParam, LPARAM lParam)
+BOOL CALLBACK SaveDlgFunc(HWND hDlg, UINT uMessage, WPARAM wParam, LPARAM lParam)
 {
-	static HWND edit;
+	TCHAR FileName[80];
 
 	switch (uMessage)
 	{
 	case WM_INITDIALOG:
-		edit = GetDlgItem(hWndd, IDC_FILE);
-		SetWindowText(edit, CurrentFile);
-		SetFocus(edit);
+		SetWindowText(GetDlgItem(hDlg, IDC_FILE), CurrentFile);
+		SetFocus(GetDlgItem(hDlg, IDC_FILE));
 		break;
 
 	case WM_COMMAND:
-
-		switch (wParam)
+		if (LOWORD(wParam) == IDOK)
 		{
-		case IDOK:
-		{
-			TCHAR FileName[80];
-			char Buff[10240] = { 0 };
-			int size;
-			DWORD writen = 0;
-			HANDLE hFile;
-
-			GetWindowText(edit, FileName, 80);
-			if (lstrlen(FileName) == 0)
-				MessageBox(hWndd, TEXT("Введите имя файла"), TEXT("Ошибка"), MB_ICONEXCLAMATION | MB_OK);
+			GetDlgItemText(hDlg, IDC_FILE, FileName, sizeof(FileName));
+			if (!lstrlen(FileName))
+			{
+				MessageBox(hDlg, TEXT("Введите имя файла"), 0, MB_ICONERROR | MB_OK);
+				SetFocus(GetDlgItem(hDlg, IDC_FILE));
+			}
 			else
 			{
-				hFile = CreateFile(FileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-				if (hFile != INVALID_HANDLE_VALUE)
-				{
-					size = GetWindowTextLengthA(hEdit) + 1;
-					if (size > 10240)
-						size = 10240;
-					GetWindowTextA(hEdit, Buff, size);
-					WriteFile(hFile, Buff, size, &writen, NULL);
-					_tcscpy(CurrentFile, FileName);
-					SendMessage(hWnd, WM_PAINT, 0, 0);
-					CloseHandle(hFile);
-					FileChanged = FALSE;
-					EndDialog(hWndd, 0);
-				}
-				else
-					MessageBox(hWndd, TEXT("Ошибка при сохранении файла"), TEXT("Ошибка"), MB_ICONEXCLAMATION | MB_OK);
+				SaveFile(hDlg, FileName);
+				EndDialog(hDlg, 0);
+				return TRUE;
 			}
 		}
-		break;
 
-		case IDCANCEL:
-			EndDialog(hWndd, 0);
-			break;
+		if (LOWORD(wParam) == IDCANCEL)
+		{
+			EndDialog(hDlg, 0);
+			return TRUE;
 		}
-		return TRUE;
+
 		break;
 
 	case WM_CLOSE:
-		EndDialog(hWndd, 0);
+		EndDialog(hDlg, 0);
 		return TRUE;
-		break;
 	}
 	return FALSE;
+}
+
+BOOL CALLBACK CreateDlgFunc(HWND hDlg, UINT uMessage, WPARAM wParam, LPARAM lParam)
+{
+	TCHAR FileName[80];
+
+	switch (uMessage)
+	{
+	case WM_INITDIALOG:
+		SetFocus(GetDlgItem(hDlg, IDC_FILE));
+		break;
+
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDOK)
+		{
+			if (FileChanged)
+				if (IDCANCEL == PromptSave(hDlg))
+					SendMessage(hDlg, WM_CLOSE, 0, 0);
+
+			GetDlgItemText(hDlg, IDC_FILE, FileName, sizeof(FileName));
+			if (!lstrlen(FileName))
+			{
+				MessageBox(hDlg, TEXT("Введите имя файла"), 0, MB_ICONERROR | MB_OK);
+				SetFocus(GetDlgItem(hDlg, IDC_FILE));
+			}
+			else
+			{
+				SetWindowText(hEdit, TEXT(""));
+				SaveFile(hDlg, FileName);
+				EndDialog(hDlg, 0);
+				return TRUE;
+			}
+		}
+
+		if (LOWORD(wParam) == IDCANCEL)
+		{
+			EndDialog(hDlg, 0);
+			return TRUE;
+		}
+
+		break;
+
+	case WM_CLOSE:
+		EndDialog(hDlg, 0);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+
+int PromptSave(HWND hWnd)
+{
+	TCHAR msg[80];
+	int R;
+
+	wsprintf(msg, TEXT("Файл %s был изменён. Сохранить?"), CurrentFile);
+	R = MessageBox(hWnd, msg, TEXT("Внимание"), MB_ICONEXCLAMATION | MB_YESNOCANCEL);
+	if (R == IDYES)
+		SaveFile(hWnd, CurrentFile);
+	return R;
+}
+
+void SaveFile(HWND hWnd, const TCHAR* FileName)
+{
+	HANDLE hFile;
+	char Buff[10240];
+	DWORD writen;
+	int size;
+
+	hFile = CreateFile(FileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile != INVALID_HANDLE_VALUE)
+	{
+		size = GetWindowTextLengthA(hEdit) + 1;
+		if (size > 10240)
+			size = 10240;
+		GetWindowTextA(hEdit, Buff, size);
+		WriteFile(hFile, Buff, size, &writen, NULL);
+		CloseHandle(hFile);
+		lstrcpy(CurrentFile, FileName);
+		SendMessage(GetParent(hWnd), WM_PAINT, (WPARAM)0, (LPARAM)0);
+		FileChanged = FALSE;
+	}
+	else
+		MessageBox(hWnd, TEXT("Ошибка при сохранении файла"), 0, MB_ICONEXCLAMATION | MB_OK);
+}
+
+void LoadFile(HWND hWnd, const TCHAR* FileName)
+{
+	HANDLE hFile;
+	char Buff[10240];
+	DWORD read;
+
+	hFile = CreateFile(FileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile != INVALID_HANDLE_VALUE)
+	{
+		ReadFile(hFile, Buff, sizeof(Buff), &read, NULL);
+		CloseHandle(hFile);
+		SetWindowTextA(hEdit, Buff);
+		lstrcpy(CurrentFile, FileName);
+		SendMessage(GetParent(hWnd), WM_PAINT, (WPARAM)0, (LPARAM)0);
+		FileChanged = FALSE;
+	}
+	else
+		MessageBox(hWnd, TEXT("Файл с указанным именем не найден"), 0, MB_ICONEXCLAMATION | MB_OK);
 }

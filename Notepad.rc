@@ -31,7 +31,6 @@ BEGIN
     END
 END
 
-
 /////////////////////////////////////////////////////////////////////////////
 //
 // Icon
@@ -39,7 +38,6 @@ END
 
 IDI_NOTEPAT_ICON        ICON                    "notepad32.ico"
 IDI_NOTEPAD_SMICON      ICON                    "notepad16.ico"
-
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -71,4 +69,20 @@ BEGIN
     PUSHBUTTON      "Отмена", IDCANCEL, 135, 58, 50, 14
     EDITTEXT        IDC_FILE, 21, 30, 185, 13, ES_AUTOHSCROLL
     CONTROL         "Имя файла:", IDC_STATIC, "Static", SS_SIMPLE, 23, 15, 182, 12
+END
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Диалоговое окно "Создать файл"
+//
+
+IDD_CREATE DIALOGEX 0, 0, 225, 90
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Создать файл"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+DEFPUSHBUTTON   "Создать", IDOK, 39, 59, 50, 14
+PUSHBUTTON      "Отмена", IDCANCEL, 135, 58, 50, 14
+EDITTEXT        IDC_FILE, 21, 30, 185, 13, ES_AUTOHSCROLL
+CONTROL         "Имя файла:", IDC_STATIC, "Static", SS_SIMPLE, 23, 15, 182, 12
 END
